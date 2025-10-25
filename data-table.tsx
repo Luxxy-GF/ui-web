@@ -53,7 +53,8 @@ function Row({ row }: { row: Row<z.infer<any>> }) {
       className="relative z-0 data-[dragging=true]:z-10 data-[dragging=true]:opacity-80"
     >
       {row.getVisibleCells().map((cell) => (
-        <TableCell key={cell.id}>
+        //@ts-expect-error
+        <TableCell key={cell.id} className={cell.column.columnDef.minWidth ? "pr-0" : ""}>
           {flexRender(cell.column.columnDef.cell, cell.getContext())}
         </TableCell>
       ))}
