@@ -226,6 +226,7 @@ export default function DataTable({
                     <TableHead
                       style={{
                         width: header.getSize().toString() + "px",
+                        maxWidth: header.getSize().toString() + "px",
                       }}
                       key={header.id}
                     >
