@@ -104,6 +104,7 @@ export default function DataTable({
   stringFilter,
   onSelectionChange,
   onRowClick,
+  getRowClassName,
 }: {
   data: object[];
   cols: ColumnDef<object, unknown>[];
@@ -115,6 +116,7 @@ export default function DataTable({
     row: Row<object>,
     event: React.MouseEvent<HTMLTableRowElement, MouseEvent>
   ) => void;
+  getRowClassName?: (row: Row<object>) => string | undefined;
 }) {
   let columns: ColumnDef<object, unknown>[] = cols.map((col) => {
     console.log(typeof col.header);
@@ -248,7 +250,10 @@ export default function DataTable({
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
-                  className={cn(onRowClick ? "cursor-pointer" : "")}
+                  className={cn(
+                    onRowClick ? "cursor-pointer" : "",
+                    getRowClassName ? getRowClassName(row) : ""
+                  )}
                   onClick={
                     onRowClick
                       ? (event) => {
