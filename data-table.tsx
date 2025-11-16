@@ -1,37 +1,30 @@
-"use client"
-import * as React from "react"
+"use client";
+
+import * as React from "react";
 import {
-  IconChevronLeft,
-  IconChevronRight,
-  IconChevronsLeft,
-  IconChevronsRight, IconPlus
-} from "@tabler/icons-react"
-import {
+  CellContext,
+  Column,
   ColumnDef,
   ColumnFiltersState,
   flexRender,
   getCoreRowModel,
-  getFacetedRowModel,
-  getFacetedUniqueValues,
   getFilteredRowModel,
   getPaginationRowModel,
   getSortedRowModel,
-  type Row,
+  HeaderContext,
   SortingState,
   useReactTable,
   VisibilityState,
-} from "@tanstack/react-table"
-import { z } from "zod"
+} from "@tanstack/react-table";
 
-import { Button } from "@/components/ui/button"
-import { Label } from "@/components/ui/label"
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/components/ui/hover-card";
+import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -39,103 +32,221 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table"
-import {
-  Tabs,
-  TabsContent
-} from "@/components/ui/tabs"
+} from "@/components/ui/table";
+import { ArrowDown } from "lucide-react";
+import { cn } from "@/lib/utils";
 
-function Row({ row }: { row: Row<z.infer<any>> }) {
-
-  return (
-    <TableRow
-      data-state={row.getIsSelected() && "selected"}
-      className="relative z-0 data-[dragging=true]:z-10 data-[dragging=true]:opacity-80"
-    >
-      {row.getVisibleCells().map((cell) => (
-        <TableCell key={cell.id}>
-          {flexRender(cell.column.columnDef.cell, cell.getContext())}
-        </TableCell>
-      ))}
-    </TableRow>
-  )
+interface DataTableColumnHeaderProps<TData, TValue>
+  extends React.HTMLAttributes<HTMLDivElement> {
+  column: Column<TData, TValue>;
+  title: string;
 }
-export type TableRow = z.infer<any>
-export type TableColumn = ColumnDef<z.infer<any>>
-export function DataTable({
-  data: initialData,
-  columns,
+export function DataTableColumnHeader<TData, TValue>({
+  column,
+  title,
+  className,
+  ...props
+}: DataTableColumnHeaderProps<TData, TValue>) {
+  if (!column.getCanSort()) {
+    return <div className={cn(className)}>{title}</div>;
+  }
+  if (!column.getCanFilter()) {
+    return (
+      <div className={cn("flex items-center gap-2", className)} {...props}>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="data-[state=open]:bg-accent -ml-3 h-8"
+          onClick={() =>
+            column.toggleSorting(column.getIsSorted() === "asc" ? true : false)
+          }
+        >
+          <span>{title}</span>
+          <ArrowDown
+            className={`transition-all duration-100 rotate-0 ${
+              column.getIsSorted() == "desc"
+                ? ""
+                : column.getIsSorted() == "asc"
+                ? "rotate-180"
+                : "hidden"
+            }`}
+          />
+        </Button>
+      </div>
+    );
+  }
+  return (
+    <div className={cn("flex items-center gap-2", className)} {...props}>
+      <HoverCard>
+        <HoverCardTrigger asChild>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="data-[state=open]:bg-accent -ml-3 h-8"
+          >
+            <span>{title}</span>
+          </Button>
+        </HoverCardTrigger>
+        <HoverCardContent align="center" portalled={false}>
+          <Input placeholder="Search..." />
+        </HoverCardContent>
+      </HoverCard>
+    </div>
+  );
+}
+
+export default function DataTable({
+  data,
+  className,
+  cols,
+  enableSelection,
+  stringFilter,
 }: {
-  data: any[],
-  columns: TableColumn[]
+  data: object[];
+  cols: ColumnDef<object, unknown>[];
+  className?: string;
+  enableSelection?: boolean;
+  stringFilter?: string;
 }) {
-  const [data, setData] = React.useState(() => initialData)
-  const [rowSelection, setRowSelection] = React.useState({})
-  const [columnVisibility, setColumnVisibility] =
-    React.useState<VisibilityState>({})
+  let columns: ColumnDef<object, unknown>[] = cols.map((col) => {
+    console.log(typeof col.header);
+    return {
+      ...col,
+      id:
+        typeof col.header == "string" && !col.id
+          ? col.header.toString().toLowerCase()
+          : col.id,
+      header:
+        typeof col.header == "string"
+          ? ({ column }: HeaderContext<object, unknown>) => (
+              <DataTableColumnHeader
+                column={column}
+                title={col.header as string}
+              />
+            )
+          : col.header,
+      cell: col.cell
+        ? col.cell
+        : ({ getValue }: { getValue: () => unknown }) => {
+            return <div>{getValue() as string}</div>;
+          },
+    } as ColumnDef<object, unknown>;
+  });
+  if (enableSelection) {
+    columns = [
+      {
+        id: "select",
+        header: ({ table }: HeaderContext<object, unknown>) => (
+          <Checkbox
+            className="w-4"
+            checked={table.getIsAllPageRowsSelected()}
+            onCheckedChange={(value) =>
+              table.toggleAllPageRowsSelected(!!value)
+            }
+            aria-label="Select all"
+          />
+        ),
+        cell: ({ row }: CellContext<object, unknown>) => (
+          <Checkbox
+            className="w-4"
+            checked={row.getIsSelected()}
+            onCheckedChange={(value) => row.toggleSelected(!!value)}
+            aria-label="Select row"
+          />
+        ),
+        enableSorting: false,
+        enableHiding: false,
+        size: 20,
+      } as ColumnDef<object, unknown>,
+      ...columns,
+    ];
+  }
+  const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
     []
-  )
-  const [sorting, setSorting] = React.useState<SortingState>([])
-  const [pagination, setPagination] = React.useState({
-    pageIndex: 0,
-    pageSize: 10,
-  })
+  );
+  const [columnVisibility, setColumnVisibility] =
+    React.useState<VisibilityState>({});
+  const [rowSelection, setRowSelection] = React.useState({});
 
+  // Note: React Compiler warning about useReactTable is expected.
+  // TanStack Table's useReactTable returns functions that cannot be memoized safely,
+  // which is why the React Compiler correctly skips memoization for this hook.
+  // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
     data,
     columns,
-    state: {
-      sorting,
-      columnVisibility,
-      rowSelection,
-      columnFilters,
-      pagination,
-    },
-    getRowId: (row) => row.id.toString(),
-    enableRowSelection: true,
-    onRowSelectionChange: setRowSelection,
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
-    onColumnVisibilityChange: setColumnVisibility,
-    onPaginationChange: setPagination,
     getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
-    getFacetedRowModel: getFacetedRowModel(),
-    getFacetedUniqueValues: getFacetedUniqueValues(),
-  })
+    getFilteredRowModel: getFilteredRowModel(),
+    onColumnVisibilityChange: setColumnVisibility,
+    onRowSelectionChange: setRowSelection,
+    globalFilterFn: "includesString",
 
+    state: {
+      sorting,
+      columnFilters,
+      columnVisibility,
+      rowSelection,
+    },
+  });
+  React.useEffect(() => {
+    table.setGlobalFilter(stringFilter ?? "");
+  }, [stringFilter, table]);
   return (
-
-    <div className="relative flex flex-col gap-4 overflow-auto px-4 lg:px-6">
-      <div className="overflow-hidden rounded-lg border">
-
+    <div className={cn("w-full", className)}>
+      <div className="overflow-hidden rounded-md border">
         <Table>
-          <TableHeader className="bg-muted sticky top-0 z-10">
+          <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => {
+                  console.log(header.getSize());
                   return (
-                    <TableHead key={header.id} colSpan={header.colSpan}>
+                    <TableHead
+                      style={{
+                        width: header.getSize().toString() + "px",
+                      }}
+                      key={header.id}
+                    >
                       {header.isPlaceholder
                         ? null
                         : flexRender(
-                          header.column.columnDef.header,
-                          header.getContext()
-                        )}
+                            header.column.columnDef.header,
+                            header.getContext()
+                          )}
                     </TableHead>
-                  )
+                  );
                 })}
               </TableRow>
             ))}
           </TableHeader>
-          <TableBody className="**:data-[slot=table-cell]:first:w-8">
+          <TableBody>
             {table.getRowModel().rows?.length ? (
-              <>{table.getRowModel().rows.map((row) => (
-                <Row key={row.id} row={row} />
-              ))}</>
+              table.getRowModel().rows.map((row) => (
+                <TableRow
+                  key={row.id}
+                  data-state={row.getIsSelected() && "selected"}
+                >
+                  {row.getVisibleCells().map((cell) => (
+                    <TableCell
+                      key={cell.id}
+                      style={{
+                        width: cell.column.getSize().toString() + "px",
+                        maxWidth: cell.column.getSize().toString() + "px",
+                      }}
+                    >
+                      {flexRender(
+                        cell.column.columnDef.cell,
+                        cell.getContext()
+                      )}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))
             ) : (
               <TableRow>
                 <TableCell
@@ -149,83 +260,32 @@ export function DataTable({
           </TableBody>
         </Table>
       </div>
-      <div className="flex items-center justify-between px-4">
-        <div className="text-muted-foreground hidden flex-1 text-sm lg:flex">
-          {table.getFilteredSelectedRowModel().rows.length} of{" "}
-          {table.getFilteredRowModel().rows.length} row(s) selected.
-        </div>
-        <div className="flex w-full items-center gap-8 lg:w-fit">
-          <div className="hidden items-center gap-2 lg:flex">
-            <Label htmlFor="rows-per-page" className="text-sm font-medium">
-              Rows per page
-            </Label>
-            <Select
-              value={`${table.getState().pagination.pageSize}`}
-              onValueChange={(value) => {
-                table.setPageSize(Number(value))
-              }}
-            >
-              <SelectTrigger size="sm" className="w-20" id="rows-per-page">
-                <SelectValue
-                  placeholder={table.getState().pagination.pageSize}
-                />
-              </SelectTrigger>
-              <SelectContent side="top">
-                {[10, 20, 30, 40, 50].map((pageSize) => (
-                  <SelectItem key={pageSize} value={`${pageSize}`}>
-                    {pageSize}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+      <div className="flex items-center justify-end space-x-2 py-4">
+        {enableSelection ? (
+          <div className="text-muted-foreground flex-1 text-sm">
+            {table.getFilteredSelectedRowModel().rows.length} of{" "}
+            {table.getFilteredRowModel().rows.length} selected.
           </div>
-          <div className="flex w-fit items-center justify-center text-sm font-medium">
-            Page {table.getState().pagination.pageIndex + 1} of{" "}
-            {table.getPageCount()}
-          </div>
-          <div className="ml-auto flex items-center gap-2 lg:ml-0">
-            <Button
-              variant="outline"
-              className="hidden h-8 w-8 p-0 lg:flex"
-              onClick={() => table.setPageIndex(0)}
-              disabled={!table.getCanPreviousPage()}
-            >
-              <span className="sr-only">Go to first page</span>
-              <IconChevronsLeft />
-            </Button>
-            <Button
-              variant="outline"
-              className="size-8"
-              size="icon"
-              onClick={() => table.previousPage()}
-              disabled={!table.getCanPreviousPage()}
-            >
-              <span className="sr-only">Go to previous page</span>
-              <IconChevronLeft />
-            </Button>
-            <Button
-              variant="outline"
-              className="size-8"
-              size="icon"
-              onClick={() => table.nextPage()}
-              disabled={!table.getCanNextPage()}
-            >
-              <span className="sr-only">Go to next page</span>
-              <IconChevronRight />
-            </Button>
-            <Button
-              variant="outline"
-              className="hidden size-8 lg:flex"
-              size="icon"
-              onClick={() => table.setPageIndex(table.getPageCount() - 1)}
-              disabled={!table.getCanNextPage()}
-            >
-              <span className="sr-only">Go to last page</span>
-              <IconChevronsRight />
-            </Button>
-          </div>
+        ) : null}
+        <div className="space-x-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => table.previousPage()}
+            disabled={!table.getCanPreviousPage()}
+          >
+            Previous
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => table.nextPage()}
+            disabled={!table.getCanNextPage()}
+          >
+            Next
+          </Button>
         </div>
       </div>
     </div>
-  )
+  );
 }
