@@ -12,6 +12,7 @@ import {
   getPaginationRowModel,
   getSortedRowModel,
   HeaderContext,
+  Row,
   SortingState,
   useReactTable,
   VisibilityState,
@@ -101,12 +102,19 @@ export default function DataTable({
   cols,
   enableSelection,
   stringFilter,
+  onSelectionChange,
+  onRowClick,
 }: {
   data: object[];
   cols: ColumnDef<object, unknown>[];
   className?: string;
   enableSelection?: boolean;
   stringFilter?: string;
+  onSelectionChange?: (rows: Row<object>[]) => void;
+  onRowClick?: (
+    row: Row<object>,
+    event: React.MouseEvent<HTMLTableRowElement, MouseEvent>
+  ) => void;
 }) {
   let columns: ColumnDef<object, unknown>[] = cols.map((col) => {
     console.log(typeof col.header);
@@ -147,12 +155,17 @@ export default function DataTable({
           />
         ),
         cell: ({ row }: CellContext<object, unknown>) => (
-          <Checkbox
-            className="w-4"
-            checked={row.getIsSelected()}
-            onCheckedChange={(value) => row.toggleSelected(!!value)}
-            aria-label="Select row"
-          />
+          <div
+            onClick={(event) => event.stopPropagation()}
+            role="presentation"
+          >
+            <Checkbox
+              className="w-4"
+              checked={row.getIsSelected()}
+              onCheckedChange={(value) => row.toggleSelected(!!value)}
+              aria-label="Select row"
+            />
+          </div>
         ),
         enableSorting: false,
         enableHiding: false,
@@ -196,6 +209,10 @@ export default function DataTable({
   React.useEffect(() => {
     table.setGlobalFilter(stringFilter ?? "");
   }, [stringFilter, table]);
+  React.useEffect(() => {
+    if (!enableSelection || !onSelectionChange) return;
+    onSelectionChange(table.getFilteredSelectedRowModel().rows);
+  }, [enableSelection, onSelectionChange, rowSelection, table]);
   return (
     <div className={cn("w-full", className)}>
       <div className="overflow-hidden rounded-md border">
@@ -230,6 +247,14 @@ export default function DataTable({
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
+                  className={cn(onRowClick ? "cursor-pointer" : "")}
+                  onClick={
+                    onRowClick
+                      ? (event) => {
+                          onRowClick(row, event);
+                        }
+                      : undefined
+                  }
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell
