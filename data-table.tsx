@@ -226,6 +226,7 @@ export default function DataTable({
                   console.log(header.getSize());
                   return (
                     <TableHead
+                      className="min-w-0"
                       style={{
                         width: header.getSize().toString() + "px",
                         maxWidth: header.getSize().toString() + "px",
@@ -265,6 +266,7 @@ export default function DataTable({
                   {row.getVisibleCells().map((cell) => (
                     <TableCell
                       key={cell.id}
+                      className="min-w-0"
                       style={{
                         width: cell.column.getSize().toString() + "px",
                         maxWidth: cell.column.getSize().toString() + "px",
