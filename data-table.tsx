@@ -157,10 +157,7 @@ export default function DataTable({
           />
         ),
         cell: ({ row }: CellContext<object, unknown>) => (
-          <div
-            onClick={(event) => event.stopPropagation()}
-            role="presentation"
-          >
+          <div onClick={(event) => event.stopPropagation()} role="presentation">
             <Checkbox
               className="w-4"
               checked={row.getIsSelected()}
