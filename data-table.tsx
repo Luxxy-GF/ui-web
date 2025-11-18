@@ -18,14 +18,10 @@ import {
   VisibilityState,
 } from "@tanstack/react-table";
 
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/components/ui/hover-card";
-import { Input } from "@/components/ui/input";
+import { Button } from "./button";
+import { Checkbox } from "./checkbox";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "./hover-card";
+import { Input } from "./input";
 import {
   Table,
   TableBody,
@@ -33,7 +29,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
+} from "./table";
 import { ArrowDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
