@@ -31,7 +31,7 @@ import {
   TableRow,
 } from "./table";
 import { ArrowDown } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "./lib/utils";
 
 interface DataTableColumnHeaderProps<TData, TValue>
   extends React.HTMLAttributes<HTMLDivElement> {
