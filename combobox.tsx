@@ -13,16 +13,25 @@ import {
   CommandSeparator,
 } from "./command";
 import { cn } from "./lib/utils";
+import { Spinner } from "./spinner";
+import { Badge } from "./badge";
+import { XIcon } from "lucide-react";
 
 interface ComboboxContextValue {
   value?: string;
   label?: string;
-  setSelected: (value: string, label: string) => void;
+  setSelected: (value: string, label: string | undefined) => void;
   open: boolean;
   setOpen: (open: boolean) => void;
   disabled?: boolean;
   triggerWidth?: number;
   setTriggerWidth: (width: number) => void;
+  defaultValue?: string;
+  allowDeselect?: boolean;
+  validating?: boolean;
+  multiple?: boolean;
+  values?: string[];
+  toggleValue: (value: string) => void;
 }
 
 const ComboboxContext = React.createContext<ComboboxContextValue | null>(null);
@@ -38,10 +47,15 @@ type ComboboxProps = {
   value?: string;
   defaultValue?: string;
   onValueChange?: (value: string) => void;
+  values?: string[];
+  onValuesChange?: (values: string[]) => void;
   children: React.ReactNode;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   disabled?: boolean;
+  allowDeselect?: boolean;
+  validating?: boolean;
+  multiple?: boolean;
 };
 
 function Combobox({
@@ -52,19 +66,37 @@ function Combobox({
   open: controlledOpen,
   onOpenChange,
   disabled,
+  allowDeselect,
+  validating,
+  multiple,
+  values: controlledValues,
+  onValuesChange,
 }: ComboboxProps) {
   const [uncontrolledValue, setUncontrolledValue] = React.useState<
     string | undefined
   >(defaultValue);
+  const [uncontrolledValues, setUncontrolledValues] = React.useState<string[]>(
+    () => {
+      if (multiple) {
+        return defaultValue ? [defaultValue] : [];
+      }
+      return [];
+    }
+  );
   const [label, setLabel] = React.useState<string | undefined>(undefined);
   const [uncontrolledOpen, setUncontrolledOpen] = React.useState(false);
 
   const value =
     controlledValue !== undefined ? controlledValue : uncontrolledValue;
+  const values = multiple
+    ? controlledValues !== undefined
+      ? controlledValues
+      : uncontrolledValues
+    : undefined;
   const open = controlledOpen !== undefined ? controlledOpen : uncontrolledOpen;
 
   const setSelected = React.useCallback(
-    (v: string, l: string) => {
+    (v: string, l: string | undefined) => {
       if (controlledValue === undefined) setUncontrolledValue(v);
       setLabel(l);
       onValueChange?.(v);
@@ -72,6 +104,19 @@ function Combobox({
       onOpenChange?.(false);
     },
     [controlledValue, onValueChange, controlledOpen, onOpenChange]
+  );
+
+  const toggleValue = React.useCallback(
+    (v: string) => {
+      if (!multiple) return;
+      const current = values ? [...values] : [];
+      const exists = current.includes(v);
+      let next = exists ? current.filter((x) => x !== v) : [...current, v];
+      if (next.length === 0 && defaultValue) next = [defaultValue];
+      if (controlledValues === undefined) setUncontrolledValues(next);
+      onValuesChange?.(next);
+    },
+    [multiple, values, defaultValue, controlledValues, onValuesChange]
   );
 
   const setOpen = React.useCallback(
@@ -83,6 +128,7 @@ function Combobox({
   );
 
   React.useEffect(() => {
+    if (multiple) return; // single-value label derivation only
     if (!value || label) return;
     const search = (nodes: React.ReactNode): string | undefined => {
       let found: string | undefined;
@@ -106,7 +152,7 @@ function Combobox({
     };
     const derived = search(children);
     if (derived) setLabel(derived);
-  }, [value, label, children]);
+  }, [value, label, children, multiple]);
 
   const wrapperRef = React.useRef<HTMLSpanElement | null>(null);
   const [triggerWidth, setTriggerWidthState] = React.useState<
@@ -127,6 +173,12 @@ function Combobox({
         disabled,
         triggerWidth,
         setTriggerWidth,
+        defaultValue,
+        allowDeselect,
+        validating,
+        multiple,
+        values,
+        toggleValue,
       }}
     >
       <span
@@ -152,8 +204,18 @@ function ComboboxTrigger({
   size?: "sm" | "default";
   placeholder?: string;
 }) {
-  const { label, open, setOpen, disabled, setTriggerWidth } =
-    useComboboxContext();
+  const {
+    label,
+    open,
+    setOpen,
+    disabled,
+    setTriggerWidth,
+    validating,
+    multiple,
+    values,
+    toggleValue,
+    defaultValue,
+  } = useComboboxContext();
   const ref = React.useRef<HTMLButtonElement | null>(null);
 
   // Use callback ref + layout effect for immediate measurement before first paint.
@@ -197,11 +259,62 @@ function ComboboxTrigger({
       onClick={() => setOpen(!open)}
       {...props}
     >
-      {children ?? (
-        <ComboboxValue placeholder={placeholder}>
-          {label ?? placeholder}
-        </ComboboxValue>
-      )}
+      {children ??
+        (multiple ? (
+          values && values.length ? (
+            <ComboboxValue>
+              <span className="flex flex-wrap gap-1 max-w-full">
+                {values.map((v) => {
+                  const isDefault = v === defaultValue;
+                  const canRemoveDefault = !isDefault || values.length > 1;
+                  return (
+                    <Badge
+                      key={v}
+                      variant="secondary"
+                      className="max-w-40 truncate px-2 py-0.5 flex items-center gap-2"
+                    >
+                      <span className="truncate" title={v}>
+                        {v}
+                      </span>
+                      {canRemoveDefault && (
+                        <span
+                          role="button"
+                          tabIndex={0}
+                          aria-label={`Remove ${v}`}
+                          className="inline-flex items-center justify-center rounded-full hover:bg-secondary/80 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 transition-colors cursor-pointer"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            toggleValue(v);
+                          }}
+                          onKeyDown={(e) => {
+                            if (
+                              e.key === "Enter" ||
+                              e.key === " " ||
+                              e.key === "Spacebar"
+                            ) {
+                              e.stopPropagation();
+                              e.preventDefault();
+                              toggleValue(v);
+                            }
+                          }}
+                        >
+                          <XIcon className="size-3" />
+                        </span>
+                      )}
+                    </Badge>
+                  );
+                })}
+              </span>
+            </ComboboxValue>
+          ) : (
+            <ComboboxValue placeholder={placeholder} />
+          )
+        ) : label ? (
+          <ComboboxValue>{label}</ComboboxValue>
+        ) : (
+          <ComboboxValue placeholder={placeholder} />
+        ))}
       <ChevronDownIcon className="size-4 opacity-50" />
     </PopoverPrimitive.Trigger>
   );
@@ -220,7 +333,12 @@ function ComboboxValue({
     <span
       data-slot="combobox-value"
       data-placeholder={children ? undefined : placeholder ? "true" : undefined}
-      className={cn("flex items-center gap-2", className)}
+      className={cn(
+        "flex items-center gap-2",
+        // Muted color when placeholder state (no children content)
+        !children && placeholder && "text-muted-foreground",
+        className
+      )}
     >
       {children || placeholder}
     </span>
@@ -234,10 +352,12 @@ function ComboboxContent({
   sideOffset = 4,
   searchPlaceholder = "Search...",
   emptyLabel = "No results found.",
+  loading = false,
   ...props
 }: React.ComponentProps<typeof PopoverPrimitive.Content> & {
   searchPlaceholder?: string;
   emptyLabel?: string;
+  loading?: boolean;
 }) {
   const { setOpen, triggerWidth } = useComboboxContext();
   return (
@@ -268,9 +388,18 @@ function ComboboxContent({
         {...props}
       >
         <Command className="[&_[cmdk-item]]:px-2 [&_[cmdk-item]]:py-1.5">
-          <CommandInput placeholder={searchPlaceholder} />
-          <CommandEmpty>{emptyLabel}</CommandEmpty>
-          <CommandList className="p-1">{children}</CommandList>
+          <CommandInput placeholder={searchPlaceholder} disabled={loading} />
+          {loading ? (
+            <div className="py-10 flex flex-col items-center justify-center gap-2">
+              <Spinner className="size-5" />
+              <div className="text-xs text-muted-foreground">Loading...</div>
+            </div>
+          ) : (
+            <>
+              <CommandEmpty>{emptyLabel}</CommandEmpty>
+              <CommandList className="p-1">{children}</CommandList>
+            </>
+          )}
         </Command>
       </PopoverPrimitive.Content>
     </PopoverPrimitive.Portal>
@@ -283,29 +412,64 @@ function ComboboxItem({
   value,
   onSelect,
   disabled,
+  description,
   ...props
-}: React.ComponentProps<typeof CommandItem> & { value: string }) {
-  const { setSelected, value: selectedValue } = useComboboxContext();
+}: React.ComponentProps<typeof CommandItem> & {
+  value: string;
+  description?: string;
+}) {
+  const {
+    setSelected,
+    value: selectedValue,
+    allowDeselect,
+    defaultValue,
+    validating,
+    multiple,
+    values,
+    toggleValue,
+  } = useComboboxContext();
   return (
     <CommandItem
       data-slot="combobox-item"
       value={value}
       onSelect={(v) => {
         if (disabled) return;
+        // If deselect allowed and clicking current selection, revert to defaultValue
+        if (multiple) {
+          toggleValue(v);
+          onSelect?.(v);
+          return;
+        }
+        if (allowDeselect && selectedValue === value) {
+          const revert = defaultValue ?? "";
+          setSelected(revert, undefined);
+          onSelect?.(revert);
+          return;
+        }
         setSelected(v, typeof children === "string" ? children : String(v));
         onSelect?.(v);
       }}
       disabled={disabled as any}
       className={cn(
         "data-[selected=true]:bg-accent data-[selected=true]:text-accent-foreground [&_svg:not([class*='text-'])]:text-muted-foreground relative flex cursor-default items-center gap-2 rounded-sm py-1.5 pr-8 pl-2 text-sm outline-hidden select-none data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        validating && "animate-pulse",
         className
       )}
       {...props}
     >
       <span className="absolute right-2 flex size-3.5 items-center justify-center">
-        {selectedValue === value && <CheckIcon className="size-4" />}
+        {multiple
+          ? values && values.includes(value) && <CheckIcon className="size-4" />
+          : selectedValue === value && <CheckIcon className="size-4" />}
       </span>
-      {children}
+      <span className="flex flex-col items-start gap-0.5">
+        <span className="font-medium leading-none">{children}</span>
+        {description && (
+          <span className="text-muted-foreground text-xs leading-snug line-clamp-2">
+            {description}
+          </span>
+        )}
+      </span>
     </CommandItem>
   );
 }
