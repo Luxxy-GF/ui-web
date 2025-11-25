@@ -19,3 +19,23 @@ export function useIsMobile() {
 
   return !!isMobile;
 }
+
+export function useMobile() {
+  const [isMobile, setIsMobile] = React.useState(false);
+  const containerRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    if (!containerRef.current) return;
+
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setIsMobile(entry.contentRect.width < MOBILE_BREAKPOINT);
+      }
+    });
+
+    observer.observe(containerRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  return { isMobile, containerRef };
+}
